@@ -375,7 +375,7 @@ class String
     # iterate each line of hexdump
     s.split(/\r?\n/).each do |hl|
       # match and check offset
-      if m = dumprx.match(hl) and $1.hex == off
+      if m = dumprx.match(hl) #and $1.hex == off
         i+=1
         # take the data chunk and unhexify it
         raw = $2.unhexify
