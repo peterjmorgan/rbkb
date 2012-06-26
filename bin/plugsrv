@@ -21,6 +21,7 @@ class BlitPlug
     def log( *msg )
       unless PLUG_OPTS[:quiet]
         PLUG_OPTS[:out].puts msg
+        PLUG_OPTS[:file].puts msg if PLUG_OPTS[:file]
       end
     end
     module_function :log
@@ -97,12 +98,12 @@ class BlitPlug
     end
 
     def say(data, sender)
-      log "%#{sender.kind.to_s.upcase}-SAYS", data.hexdump(:out => StringIO.new), "%"
+      log "%#{sender.kind.to_s.upcase}-SAYS @ #{Time.now.to_s}", data.hexdump(:out => StringIO.new), "%"
       send_data data 
     end
 
     def receive_data data
-      log "%#{kind.to_s.upcase}-#{sock_peername}-SAYS", data.hexdump, "%"
+      log "%#{kind.to_s.upcase}-#{sock_peername}-SAYS @ #{Time.now.to_s}", data.hexdump, "%"
       if @controller and (data = @controller.dispatch_rcv(self, data)).nil?
         return
       end
@@ -204,6 +205,10 @@ opts = OptionParser.new do |opts|
 
   opts.on("-o", "--output FILE", "send output to a file") do |o|
     PLUG_OPTS[:out] = File.open(o, "w") rescue (bail $!)
+  end
+
+  opts.on("-t", "--tee FILE", "tee output to file and stdout") do |o|
+    PLUG_OPTS[:file] = File.open(o,"w") rescue (bail $!)
   end
 
   opts.on("-l", "--listen ADDR:PORT", 
