@@ -21,7 +21,7 @@ class BlitPlug
     def log( *msg )
       unless PLUG_OPTS[:quiet]
         PLUG_OPTS[:out].puts msg
-        PLUG_OPTS[:file].puts msg if PLUG_OPTS[:file]
+        PLUG_OPTS[:file].puts msg if PLUG_OPTS[:file].is_a? File
       end
     end
     module_function :log
@@ -208,7 +208,9 @@ opts = OptionParser.new do |opts|
   end
 
   opts.on("-t", "--tee FILE", "tee output to file and stdout") do |o|
-    PLUG_OPTS[:file] = File.open(o,"w") rescue (bail $!)
+    f = File.open(o,"w") 
+    f.sync = true # i wonder what cascading side effects this will cause me...
+    PLUG_OPTS[:file] = f rescue (bail $!)
   end
 
   opts.on("-l", "--listen ADDR:PORT", 
