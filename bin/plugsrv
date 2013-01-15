@@ -252,7 +252,7 @@ opts = OptionParser.new do |opts|
     PLUG_OPTS[:svrport] = (m[2])? m[2].to_i : nil
   end
 
-   opts.on("-r", "--redis", "Enable redis logging") do |o|
+   opts.on("-r", "--redis KEY", "Enable redis logging") do |o|
      puts "o = #{o}"
      PLUG_OPTS[:tempsess] = o
    end
