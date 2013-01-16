@@ -18,18 +18,12 @@ require 'rbkb/plug'
 require 'em-redis'
 require 'pry'
 
-#TODO: redis-stuff
-# * need to create the redis object at some point
-# * should track connection open/close
-# * need to just write to a given 
-
 class BlitPlug
   module UI
     def log( *msg )
       unless PLUG_OPTS[:quiet]
         PLUG_OPTS[:out].puts msg
         PLUG_OPTS[:file].puts msg if PLUG_OPTS[:file].is_a? File
-        # send to redis here? 
       end
     end
     module_function :log
@@ -124,13 +118,14 @@ class BlitPlug
         return
       end
       @plug_peers.each {|p| p.send_data data}
-
-      PLUG_OPTS[:redis].incr("plugsrv:#{PLUG_OPTS[:redis_session]}:#{kind.to_s}:max") do |id|
-        PLUG_OPTS[:redis].set("plugsrv:#{PLUG_OPTS[:redis_session]}:data:#{kind.to_s}:#{id}",data) # set the key data value
-        PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:id_by_time",Time.now.to_i,id)
-        #PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:id_by_size",Time.now.to_i,id)
-        PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:ordered_data:#{kind.to_s}",0,data)
-      end
+			if PLUG_OPTS[:is_redis]	
+				PLUG_OPTS[:redis].incr("plugsrv:#{PLUG_OPTS[:redis_session]}:#{kind.to_s}:max") do |id|
+					PLUG_OPTS[:redis].set("plugsrv:#{PLUG_OPTS[:redis_session]}:data:#{kind.to_s}:#{id}",data) # set the key data value
+					PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:id_by_time",Time.now.to_i,id)
+					#PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:id_by_size",Time.now.to_i,id)
+					PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:ordered_data:#{kind.to_s}",0,data)
+				end
+			end
     end
 
 
@@ -254,6 +249,7 @@ opts = OptionParser.new do |opts|
 
    opts.on("-r", "--redis KEY", "Enable redis logging") do |o|
      puts "o = #{o}"
+     PLUG_OPTS[:is_redis] = true
      PLUG_OPTS[:tempsess] = o
    end
 
@@ -263,9 +259,9 @@ opts = OptionParser.new do |opts|
       STDERR.puts "invalid redis server:port argument"
       exit 1
     end
+    PLUG_OPTS[:is_redis] = true
     PLUG_OPTS[:redis_addr] = m[1] if m[1]
     PLUG_OPTS[:redis_port] = m[2].to_i
-    #binding.pry
   end
 
   opts.on("-q", "--[no-]quiet", "Suppress/Enable conversation dumps.") do |q|
@@ -305,7 +301,6 @@ PLUG_OPTS[:tgtport] = m[2].to_i
 PLUG_OPTS[:svraddr] ||= (m[3] || "0.0.0.0")
 PLUG_OPTS[:svrport] ||= (m[4] || PLUG_OPTS[:tgtport]).to_i
 
-
 EventMachine::run {
   # Instantiate controller
   ctrl = BlitPlug::Controller.new(PLUG_OPTS[:tgtaddr], PLUG_OPTS[:tgtport], BlitPlug::TCPClient)
@@ -316,13 +311,13 @@ EventMachine::run {
   if PLUG_OPTS[:redis_addr]
     BlitPlug::UI.log "DEBUG: #{PLUG_OPTS[:redis_addr]} #{PLUG_OPTS[:redis_port]}"
     PLUG_OPTS[:redis] = EM::Protocols::Redis.connect(PLUG_OPTS[:redis_addr].to_s, PLUG_OPTS[:redis_port].to_s)
-  else
+  elsif PLUG_OPTS[:tempsess]
     PLUG_OPTS[:redis] = EM::Protocols::Redis.connect
   end
   # here is where we set the host to use
     if PLUG_OPTS[:tempsess] # if the user set -r flag at runtime take the string provided and use as a key
       tid = PLUG_OPTS[:tempsess]
-    else
+    elsif PLUG_OPTS[:is_redis]
       tid = nil
       PLUG_OPTS[:redis].incr("plugsrv:session:max") do |id|
         tid = id
