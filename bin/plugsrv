@@ -113,28 +113,31 @@ class BlitPlug
     end
 
     def receive_data data
-      log "%#{kind.to_s.upcase}-#{sock_peername}-SAYS @ #{Time.now.to_s}", data.hexdump, "%"
+      #log "%#{kind.to_s.upcase}-#{sock_peername}-SAYS @ #{Time.now.to_s}", data.hexdump, "%"
       if @controller and (data = @controller.dispatch_rcv(self, data)).nil?
         return
       end
+      outerid = ""
       @plug_peers.each {|p| p.send_data data}
 			if PLUG_OPTS[:is_redis]	
 				PLUG_OPTS[:redis].incr("plugsrv:#{PLUG_OPTS[:redis_session]}:#{kind.to_s}:max") do |id|
+					PLUG_OPTS[:redis].set("plugsrv:#{PLUG_OPTS[:redis_session]}:#{kind.to_s}:TEMP",id)
 					PLUG_OPTS[:redis].set("plugsrv:#{PLUG_OPTS[:redis_session]}:data:#{kind.to_s}:#{id}",data) # set the key data value
 					PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:id_by_time",Time.now.to_i,id)
 					#PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:id_by_size",Time.now.to_i,id)
-					PLUG_OPTS[:redis].zadd("plugsrv:#{PLUG_OPTS[:redis_session]}:ordered_data:#{kind.to_s}",0,data)
+					PLUG_OPTS[:redis].lpush("plugsrv:#{PLUG_OPTS[:redis_session]}:OL:#{kind.to_s}",data) # ordered list
 				end
 			end
-    end
 
+			outer = PLUG_OPTS[:redis].get("plugsrv:#{PLUG_OPTS[:redis_session]}:#{kind.to_s}:TEMP") # this is broke as shit and does not work. Fuck.
+      log "%#{kind.to_s.upcase}-#{sock_peername}-SAYS @#{Time.now.to_s}-ID:#{kind.to_s}:#{outer}", data.hexdump, "%"
+    end
 
     def notify_connection
       @name = "#{kind.to_s.upcase}-#{sock_peername}"
       log "%#{@name}-CONNECTED"
       #TODO log this to redis
     end
-
 
     def unbind
       @name = "#{kind.to_s.upcase}-#{sock_peername}"
@@ -150,7 +153,6 @@ class BlitPlug
 
     end
   end
-
 
   module TCPListener
     include BlitPlug::BaseTCP
@@ -170,7 +172,6 @@ class BlitPlug
     end
 
   end # module TCPListener
-
 
   module TCPClient
     include BlitPlug::BaseTCP
