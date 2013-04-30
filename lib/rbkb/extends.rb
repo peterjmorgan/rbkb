@@ -1,4 +1,4 @@
-# Copyright 2009 emonti at matasano.com 
+# Copyrigh 2009 emonti at matasano.com 
 # See README.rdoc for license information
 #
 require "stringio"
@@ -8,6 +8,8 @@ require 'enumerator'
 require 'digest/md5'
 require 'digest/sha1'
 require 'digest/sha2'
+require 'pry'
+require 'pry-nav'
 
 
 module Rbkb
@@ -337,19 +339,30 @@ class String
     hlen=len/2
 
     s.scan(/(?:.|\n){1,#{len}}/) do |m|
-      out.write(off.to_s(16).rjust(offlen, "0") + '  ')
-
+      out.write(off.to_s(16).rjust(offlen, "0") + '  ') # here is the first part of the hexdump
       i=0
       m.each_byte do |c|
-        out.write c.to_s(16).rjust(2,"0") + " "
+        out.write c.to_s(16).rjust(2,"0") + " " # here the bytes are written
         out.write(' ') if (i+=1) == hlen
       end
 
-      out.write("   " * (len-i) ) # pad
+      out.write("   " * (len-i) ) # pad this is where the pad is
       out.write(" ") if i < hlen
 
-      out.write(" |#{m.tr("\0-\37\177-\377", '.')}|\n")
-      off += m.length
+      n = m.unpack("C*")
+      blah = n.map do |x|
+        if (0..31).include?(x)
+          46
+        elsif (127..255).include?(x)
+          46
+        else
+          x
+        end
+      end
+
+      pffsh = blah.pack("C*")
+      out.write("  |#{pffsh}|\n")
+      off += pffsh.length
     end
 
     out.write(off.to_s(16).rjust(offlen,'0') + "\n")
@@ -358,6 +371,7 @@ class String
       out.string
     end
   end
+  alias hd hexdump 
 
 
   # Converts a hexdump back to binary - takes the same options as hexdump().
