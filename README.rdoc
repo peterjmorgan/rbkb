@@ -1,6 +1,6 @@
 = rbkb
 
-* http://emonti.github.com/rbkb
+Forked from emonti's version with some new features and fixes.
 
 == DESCRIPTION:
 
